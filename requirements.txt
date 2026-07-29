@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+chromadb
+edge-tts
+faster-whisper
+ollama
+crawl4ai
+langchain-text-splitters
+SpeechRecognition
+pygame
+sentence-transformers
+slowapi

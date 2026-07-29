@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  vectordb:
+    image: chromadb/chroma:latest
+    container_name: ksum_chromadb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - chroma-data:/chroma/chroma/
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=TRUE
+    networks:
+      - internal_net
+
+  api_backend:
+    build: .
+    container_name: ksum_api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/core_website_data:/app/data/core_website_data
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - CHROMA_HOST=vectordb
+      - CHROMA_PORT=8000
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+    depends_on:
+      - vectordb
+    networks:
+      - public_net
+      - internal_net
+
+volumes:
+  chroma-data:
+    driver: local
+
+networks:
+  public_net:
+    driver: bridge
+  internal_net:
+    driver: bridge
+    

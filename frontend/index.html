@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSUM AI Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+        }
+        
+        /* Custom minimalist scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Voice activation glow */
+        .recording-glow {
+            animation: ai-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6) !important;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+            color: white !important;
+        }
+
+        @keyframes ai-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.15); opacity: 0.8; }
+        }
+
+        /* Typing indicator dots */
+        .dot-flashing {
+            position: relative;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #8b5cf6;
+            color: #8b5cf6;
+            animation: dot-flashing 1s infinite linear alternate;
+            animation-delay: 0.5s;
+        }
+        .dot-flashing::before, .dot-flashing::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #8b5cf6;
+            color: #8b5cf6;
+            animation: dot-flashing 1s infinite alternate;
+        }
+        .dot-flashing::before { left: -12px; animation-delay: 0s; }
+        .dot-flashing::after { left: 12px; animation-delay: 1s; }
+
+        @keyframes dot-flashing {
+            0% { background-color: #8b5cf6; }
+            50%, 100% { background-color: rgba(139, 92, 246, 0.2); }
+        }
+    </style>
+</head>
+<body class="h-[100dvh] w-screen text-gray-100 overflow-hidden m-0 p-0">
+
+    <div class="w-full h-full flex flex-col relative">
+        
+        <header class="flex justify-between items-center px-4 md:px-8 py-3 md:py-5 z-20 border-b border-gray-200 bg-white shadow-sm absolute top-0 left-0 w-full">
+            <div class="flex items-center gap-2 md:gap-4">
+                <div class="h-8 md:h-11 flex items-center justify-center">
+                    <img src="Kerala_StartUp_Mission_Logo.webp" alt="Kerala Startup Mission Logo" class="h-full w-auto object-contain">
+                </div>
+                <h1 class="text-xl md:text-2xl font-bold tracking-wide text-slate-800">AI Assistant</h1>
+            </div>
+            
+            <button id="toggle-voice-out" class="text-xs md:text-sm px-4 py-2 md:px-5 md:py-2.5 rounded-full bg-[#1e1b4b] hover:bg-[#0f172a] text-white transition flex items-center gap-2 shadow-md font-medium border border-white/10">
+                <span id="voice-icon" class="text-sm md:text-base">🔊</span>
+                <span id="voice-status" class="hidden sm:inline">Voice ON</span>
+            </button>
+        </header>
+
+        <main id="chat-box" class="flex-1 w-full overflow-y-auto px-8 md:px-16 lg:px-24 py-6 space-y-6 md:space-y-8 scroll-smooth z-10 pb-32 md:pb-36 pt-20 md:pt-28">
+            <div class="flex flex-col items-center justify-center h-full space-y-4 md:space-y-6" id="welcome-screen">
+                <div class="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 opacity-20 blur-2xl md:blur-3xl absolute"></div>
+                <h2 class="text-4xl md:text-5xl font-semibold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 tracking-tight">
+                    Hello!
+                </h2>
+                <p class="text-gray-400 text-base md:text-xl text-center max-w-xl font-light px-4">
+                    I am the AI Assistant for the Kerala Startup Mission. How can I guide you today?
+                </p>
+                
+                <div class="flex flex-wrap justify-center gap-2 md:gap-3 mt-6 md:mt-8 max-w-2xl px-2">
+                    <button class="suggestion-chip glass-panel px-4 py-2 md:px-5 md:py-2.5 rounded-full text-xs md:text-sm hover:bg-white/10 transition text-gray-300 shadow-sm">What are the funding schemes available?</button>
+                    <button class="suggestion-chip glass-panel px-4 py-2 md:px-5 md:py-2.5 rounded-full text-xs md:text-sm hover:bg-white/10 transition text-gray-300 shadow-sm">How to register a startup?</button>
+                    <button class="suggestion-chip glass-panel px-4 py-2 md:px-5 md:py-2.5 rounded-full text-xs md:text-sm hover:bg-white/10 transition text-gray-300 shadow-sm">Where is Kerala Startup Mission located?</button>
+                </div>
+            </div>
+        </main>
+
+        <div class="absolute bottom-4 md:bottom-8 left-0 right-0 mx-auto w-full max-w-4xl px-4 md:px-8 z-20">
+            <div class="glass-panel w-full p-1.5 md:p-2.5 rounded-full shadow-2xl flex items-center gap-2 md:gap-3 border border-white/10 bg-[#1e293b]/90 backdrop-blur-xl">
+                
+                <button id="mic-btn" class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 flex items-center justify-center transition-all duration-300 flex-shrink-0 group shadow-md" title="Click to Speak">
+                    <svg class="w-5 h-5 md:w-6 md:h-6 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                    </svg>
+                </button>
+
+                <input type="text" id="user-input" class="flex-1 bg-transparent border-none focus:outline-none px-2 md:px-4 text-gray-100 placeholder-gray-500 text-sm md:text-lg" placeholder="Ask about grants, eligibility or startup processes..." autocomplete="off">
+                
+                <button id="action-btn" class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-all duration-300 flex-shrink-0 shadow-lg" title="Send message">
+                    <svg id="send-icon" class="w-5 h-5 md:w-6 md:h-6 ml-0.5 md:ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                    <svg id="stop-icon" class="w-4 h-4 md:w-5 md:h-5 hidden" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 6h12v12H6z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const actionBtn = document.getElementById('action-btn');
+        const sendIcon = document.getElementById('send-icon');
+        const stopIcon = document.getElementById('stop-icon');
+        const micBtn = document.getElementById('mic-btn');
+        const voiceToggleBtn = document.getElementById('toggle-voice-out');
+        const voiceStatus = document.getElementById('voice-status');
+        const voiceIcon = document.getElementById('voice-icon');
+        const welcomeScreen = document.getElementById('welcome-screen');
+
+        let voiceOutputEnabled = true;
+        let isFirstMessage = true;
+        let currentAudio = null; 
+        let fetchController = null; 
+        let isGenerating = false;
+
+        // MediaRecorder API variables for Whisper
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordingTimer = null; // Variable for the 10-second timeout
+
+        // --- UI State Function for Button ---
+        function setButtonState(generating) {
+            isGenerating = generating;
+            if (generating) {
+                sendIcon.classList.add('hidden');
+                stopIcon.classList.remove('hidden');
+                actionBtn.classList.replace('bg-blue-600', 'bg-red-500');
+                actionBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-600');
+                actionBtn.title = "Stop generating";
+            } else {
+                stopIcon.classList.add('hidden');
+                sendIcon.classList.remove('hidden');
+                actionBtn.classList.replace('bg-red-500', 'bg-blue-600');
+                actionBtn.classList.replace('hover:bg-red-600', 'hover:bg-blue-500');
+                actionBtn.title = "Send message";
+            }
+        }
+
+        // --- Stop All Functionality (Fixed State Hard-Reset) ---
+        function stopEverything() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.src = ""; // Force disconnect the stream
+                currentAudio = null;   // Remove references
+            }
+            window.speechSynthesis.cancel(); 
+
+            if (fetchController) {
+                fetchController.abort();
+            }
+
+            // Clear the recording timer if it exists
+            if (recordingTimer) {
+                clearTimeout(recordingTimer);
+                recordingTimer = null;
+            }
+
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                micBtn.classList.remove('recording-glow');
+                userInput.placeholder = "Ask about grants, eligibility or startup processes...";
+            }
+            
+            setButtonState(false);
+        }
+
+        // Populate input with suggestion chips
+        document.querySelectorAll('.suggestion-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                userInput.value = e.target.innerText;
+                if (!isGenerating) sendMessage();
+            });
+        });
+
+        // Toggle Voice Output
+        voiceToggleBtn.addEventListener('click', () => {
+            voiceOutputEnabled = !voiceOutputEnabled;
+            voiceStatus.innerText = voiceOutputEnabled ? "Voice ON" : "Voice OFF";
+            voiceIcon.innerText = voiceOutputEnabled ? "🔊" : "🔇";
+            if (!voiceOutputEnabled && currentAudio) {
+                stopEverything();
+            }
+        });
+
+        // --- MediaRecorder Core (Whisper STT Routing) ---
+        async function initMicrophone() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = []; 
+                    
+                    micBtn.classList.remove('recording-glow');
+                    userInput.placeholder = "Transcribing audio...";
+                    
+                    const formData = new FormData();
+                    formData.append("file", audioBlob, "voice_input.webm");
+
+                    try {
+                        const response = await fetch('http://localhost:8000/stt', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.transcript && data.transcript.trim() !== "") {
+                            userInput.value = data.transcript;
+                            
+                            // Reset the placeholder back to normal before sending
+                            userInput.placeholder = "Ask about grants, eligibility or startup processes...";
+                            
+                            if (!isGenerating) sendMessage();
+                        } else {
+                            userInput.placeholder = "Could not hear clearly. Try again.";
+                            setTimeout(() => { userInput.placeholder = "Ask about grants, eligibility or startup processes..."; }, 3000);
+                        }
+                    } catch (error) {
+                        console.error("Transcription failed:", error);
+                        userInput.placeholder = "Transcription error. Server offline?";
+                    }
+                };
+            } catch (error) {
+                console.warn("Microphone access denied or unavailable:", error);
+                micBtn.style.display = 'none';
+            }
+        }
+
+        initMicrophone();
+
+        micBtn.addEventListener('click', () => {
+            const isAudioPlaying = currentAudio && !currentAudio.paused;
+
+            if (isGenerating || isAudioPlaying) {
+                stopEverything();
+                if (isAudioPlaying && !isGenerating) return; 
+            }
+            
+            if (!mediaRecorder) {
+                alert("Microphone access is not available. Please check permissions.");
+                return;
+            }
+
+            if (isRecording) {
+                // MANUAL STOP: Clear the timer so it doesn't fire later
+                if (recordingTimer) {
+                    clearTimeout(recordingTimer);
+                    recordingTimer = null;
+                }
+
+                mediaRecorder.stop();
+                isRecording = false;
+                micBtn.classList.remove('recording-glow');
+            } else {
+                // START RECORDING
+                audioChunks = [];
+                mediaRecorder.start();
+                isRecording = true;
+                
+                micBtn.classList.add('recording-glow');
+                userInput.value = "";
+                userInput.placeholder = "Listening...";
+
+                // AUTO-STOP TIMEOUT: Force stop after 10 seconds (10000 ms)
+                recordingTimer = setTimeout(() => {
+                    if (isRecording) {
+                        mediaRecorder.stop();
+                        isRecording = false;
+                        micBtn.classList.remove('recording-glow');
+                        userInput.placeholder = "Transcribing audio...";
+                        recordingTimer = null;
+                    }
+                }, 10000);
+            }
+        });
+
+        // Add message to UI (Fixed Smart Auto-Scrolling)
+        function appendMessage(sender, text, isError = false) {
+            if (isFirstMessage) {
+                welcomeScreen.style.display = 'none';
+                isFirstMessage = false;
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'} w-full fade-in`;
+            
+            const bubble = document.createElement('div');
+            const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<span class="font-semibold text-white">$1</span>');
+            bubble.innerHTML = formattedText.replace(/\n/g, '<br>'); 
+            
+            if (sender === 'user') {
+                bubble.className = "bg-blue-600/90 text-white px-4 py-3 md:px-6 md:py-3.5 rounded-2xl md:rounded-3xl rounded-br-sm max-w-[85%] md:max-w-[75%] shadow-lg border border-blue-500/30 font-light tracking-wide leading-relaxed text-sm md:text-base";
+            } else {
+                bubble.className = `glass-panel text-gray-200 px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl rounded-bl-sm max-w-[90%] md:max-w-[80%] shadow-lg leading-relaxed font-light text-sm md:text-base ${isError ? 'border-red-500/50 text-red-200' : ''}`;
+            }
+            
+            wrapper.appendChild(bubble);
+            chatBox.appendChild(wrapper);
+            
+            // Smart layout scrolling: Only push if user is already browsing the base path
+            const isNearBottom = chatBox.scrollHeight - chatBox.clientHeight - chatBox.scrollTop < 150;
+            if (sender === 'user' || isNearBottom) {
+                chatBox.scrollTo({
+                    top: chatBox.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        // Send message to FastAPI backend
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendMessage('user', text);
+            userInput.value = '';
+            
+            // Ensure the box resets completely when a message is sent via text
+            userInput.placeholder = "Ask about grants, eligibility or startup processes...";
+            
+            setButtonState(true); 
+
+            const typingId = "typing-" + Date.now();
+            const wrapper = document.createElement('div');
+            wrapper.id = typingId;
+            wrapper.className = "flex justify-start w-full";
+            wrapper.innerHTML = `<div class="glass-panel px-4 py-4 md:px-6 md:py-5 rounded-2xl md:rounded-3xl rounded-bl-sm flex items-center justify-center"><div class="dot-flashing"></div></div>`;
+            chatBox.appendChild(wrapper);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            if (fetchController) fetchController.abort(); 
+            fetchController = new AbortController();
+
+            try {
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text }),
+                    signal: fetchController.signal
+                });
+
+                const data = await response.json();
+                document.getElementById(typingId)?.remove();
+                
+                appendMessage('ai', data.response);
+                
+                // Audio Handling (Fixed Instance Cleanup)
+                if (voiceOutputEnabled && data.audio) {
+                    if (currentAudio) {
+                        currentAudio.pause();
+                        currentAudio.src = "";
+                    }
+                    currentAudio = new Audio("data:audio/mp3;base64," + data.audio);
+                    
+                    currentAudio.onended = () => {
+                        setButtonState(false);
+                        currentAudio = null; 
+                    };
+                    
+                    currentAudio.play();
+                } else {
+                    setButtonState(false);
+                }
+
+            } catch (error) {
+                document.getElementById(typingId)?.remove();
+                
+                if (error.name === 'AbortError') {
+                    appendMessage('ai', "Response stopped", true);
+                } else {
+                    appendMessage('ai', "System Offline: Unable to connect to the local server on port 8000.", true);
+                }
+                setButtonState(false);
+            } finally {
+                fetchController = null; 
+            }
+        }
+
+        actionBtn.addEventListener('click', () => {
+            if (isGenerating) {
+                stopEverything();
+            } else {
+                sendMessage();
+            }
+        });
+
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (!isGenerating) sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# ==========================================
+# Vector DB & Local Persistent Data
+# ==========================================
+chroma-data/
+*.sqlite3
+*.db
+
+# ==========================================
+# Model Weights & Model Caches
+# ==========================================
+model/
+.cache/
+huggingface/
+
+# ==========================================
+# Raw Uploaded Data / Internal Knowledge Base
+# ==========================================
+data/core_website_data/*
+!data/core_website_data/.gitkeep
+
+# ==========================================
+# Temporary Audio Files (STT Processing)
+# ==========================================
+*.webm
+*.wav
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+*.pem
+*.key
+
+# ==========================================
+# IDE & System Files
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
