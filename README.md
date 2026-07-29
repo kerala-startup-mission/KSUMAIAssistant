@@ -4,17 +4,27 @@ An optimized, fully offline-capable AI Voice Chatbot designed for the Kerala Sta
 
 The project has been architected as a Dockerized Microservice, featuring hyper-natural Text-to-Speech (TTS), local Speech-to-Text (STT), advanced Two-Stage Document Retrieval, and a self-healing vector database environment.
 
+---
 ## Architecture & Tech Stack
 
-*  Deployment & Orchestration:              Docker & Docker Compose
-*  LLM Engine:                              gemma4:e4b (Running natively on host via Ollama for hardware acceleration)
-*  Stage 1 Retrieval (Bi-Encoder):          thenlper/gte-small (Offline/Cached)
-*  Stage 2 Re-Ranking (Cross-Encoder):      ms-marco-MiniLM-L-6-v2 (Offline/Cached)
-*  Vector Database:                         ChromaDB (Containerized)
-*  Data Pipeline:                           crawl4ai (Web Scraping) & Gemma (Chunk Summarization)
-*  Backend API:                             FastAPI (Python) with slowapi Rate Limiting
-*  Voice Modules:                           Edge TTS (Speech Synthesis) & Faster-Whisper (Speech Recognition)
-*  Frontend:                                HTML5, Tailwind CSS, JavaScript (MediaRecorder API)
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Deployment** | Docker & Compose | Containerized orchestration and network isolation. |
+| **LLM Engine** | `gemma4:e4b` | Runs natively on host via Ollama for hardware acceleration. |
+| **Bi-Encoder** | `thenlper/gte-small` | Stage 1 Retrieval (Offline/Cached). |
+| **Cross-Encoder** | `ms-marco-MiniLM-L-6-v2`| Stage 2 Re-Ranking (Offline/Cached). |
+| **Vector DB** | ChromaDB | Containerized, self-healing vector database. |
+| **Backend API** | FastAPI (Python) | Handles Background Tasks, Chat, STT, and Admin endpoints. |
+| **Voice Modules** | Edge TTS & Whisper | In-memory text-to-speech and local speech recognition. |
+| **Frontend UI** | HTML5 / Tailwind | Modern glassmorphic interfaces for both Users and Admins. |
+
+---
+
+## Security Features
+
+* **Zero-Trust XML Sandbox:** User inputs are wrapped in strict XML boundary tags (`<user_input>`) during RAG generation. The system prompt is engineered to reject all prompt injection attacks, roleplay overrides, and "Developer Mode" exploits.
+* **Rate Limiting:** API endpoints are protected against spam and DDoS (e.g., 10 chats/min, 20 uploads/min) using `slowapi`.
+* **Network Isolation:** ChromaDB runs on an internal Docker network bridge, completely walled off from public internet access.
 
 ---
 
@@ -22,6 +32,7 @@ The project has been architected as a Dockerized Microservice, featuring hyper-n
 
 The codebase is organized into distinct, isolated microservices to ensure scalability and easy maintenance:
 
+```text
 ksum - gemma - docker/
 │
 ├── backend/                   # The Core AI API Service
@@ -40,23 +51,44 @@ ksum - gemma - docker/
 ├── data/                      # Raw Knowledge Base
 │   └── core_website_data/     # Local storage for scraped markdown files 
 │
+├── .gitignore                 # Prevents pushing sensitive data and vector DB files
 ├── .dockerignore              # Prevents container bloat by ignoring venv, cache, and old builds
 ├── docker-compose.yml         # Orchestrates the API and ChromaDB containers with network isolation
 ├── Dockerfile                 # Image blueprint for the Python FastAPI backend
 └── requirements.txt           # Python dependencies
+```
 
 ---
+## Getting Started (Commands)
 
-## Commands
+### Core Application
+Start the entire stack in the background:
+```bash
+docker compose up -d
+```
 
-* To run docker normally:          docker compose up -d
-* To run the scraper:              python -m pipeline.corescrape
-* To run the ingestion             python -m pipeline.ingest
-* To run the frontend:             python -m http.server 5500 -d frontend
-* Website:                         http://localhost:5500
-* Docker Clean Wipe:               docker compose down -v --rmi all
-* Docker Deep clean:               docker system prune -a --volumes -f
-* Docker clear builder cache:      docker builder prune -a -f
-* To rebuild the Docker stack:     docker compose up --build -d
+Serve the frontend interfaces (run from the project root):
+```bash
+python -m http.server 5500 -d frontend
+```
 
+* **User Chat Website:** `http://localhost:5500/index.html`
+* **Admin Control Panel:** `http://localhost:5500/admin.html`
+
+### Maintenance & Rebuilding
+Rebuild the Docker stack after making code changes:
+```bash
+docker compose up --build -d
+```
+
+Clean wipe all containers and data volumes:
+```bash
+docker compose down -v --rmi all
+```
+
+Deep clean Docker cache (use if builds are failing):
+```bash
+docker system prune -a --volumes -f
+docker builder prune -a -f
+```
 ---
