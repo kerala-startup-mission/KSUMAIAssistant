@@ -162,11 +162,33 @@ async def upload_markdown(request: Request, file: UploadFile = File(...)):
 def run_ingestion_script():
     logger.info("Starting background ingestion process...")
     try:
-        result = subprocess.run(["python", "-m", "pipeline.ingest"], capture_output=True, text=True, check=True)
-        logger.info(f"Ingestion Finished Successfully:\n{result.stdout}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Ingestion Failed:\n{e.stderr}")
+        # Run pipeline.ingest with -u (unbuffered output)
+        process = subprocess.Popen(
+            ["python", "-u", "-m", "pipeline.ingest"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Redirect stderr to stdout so errors stream in real-time too
+            text=True,
+            bufsize=1  # Line-buffered
+        )
 
+        # Read line by line as the script prints output
+        for line in iter(process.stdout.readline, ""):
+            cleaned_line = line.strip()
+            if cleaned_line:
+                # Logging automatically appends to RingBufferHandler and LOG_BUFFER
+                logger.info(f"[Ingest] {cleaned_line}")
+
+        process.stdout.close()
+        return_code = process.wait()
+
+        if return_code == 0:
+            logger.info("Ingestion process completed successfully!")
+        else:
+            logger.error(f"Ingestion process failed with exit code: {return_code}")
+
+    except Exception as e:
+        logger.error(f"Failed to execute ingestion subprocess: {e}")
+                
 @app.post("/api/admin/ingest")
 @limiter.limit("5/minute")
 async def trigger_ingestion(request: Request, background_tasks: BackgroundTasks):
