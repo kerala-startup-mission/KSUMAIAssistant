@@ -31,12 +31,14 @@ def _generate_chunk_summary(chunk_text: str) -> str:
         summary = response['message']['content'].strip()
         return summary if summary else chunk_text
     except Exception as e:
-        print(f"      [!] Summary generation failed, falling back to raw text: {e}")
+        # ADDED FLUSH
+        print(f"      [!] Summary generation failed, falling back to raw text: {e}", flush=True)
         return chunk_text
 
 def ingest_data():
-    print("Starting Advanced KSUM Data Ingestion Pipeline (Smart Append Mode)...")
-    print(f"Initializing local embedding model ({EMBEDDING_MODEL})...")
+    # ADDED FLUSH
+    print("Starting Advanced KSUM Data Ingestion Pipeline (Smart Append Mode)...", flush=True)
+    print(f"Initializing local embedding model ({EMBEDDING_MODEL})...", flush=True)
     
     chrome_client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
     embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
@@ -50,7 +52,6 @@ def ingest_data():
     )
     
     # 2. ASK THE DB WHAT IT ALREADY KNOWS
-    # We fetch all existing metadata to compile a list of files already ingested
     existing_data = collection.get(include=["metadatas"])
     existing_files = set()
     
@@ -59,7 +60,8 @@ def ingest_data():
             if meta and "file" in meta:
                 existing_files.add(meta["file"])
                 
-    print(f"Database currently contains {len(existing_files)} indexed document(s).")
+    # ADDED FLUSH
+    print(f"Database currently contains {len(existing_files)} indexed document(s).", flush=True)
     
     headers_to_split_on = [
         ("#", "Header 1"),
@@ -79,80 +81,96 @@ def ingest_data():
     )
 
     total_new_chunks = 0
-
+    
+    # --- NEW: PRE-SCAN FILES TO PROVIDE ACCURATE PROGRESS COUNTS ---
+    files_to_process = []
+    
     for category_name, folder_path in DATA_DIRS.items():
         if not os.path.exists(folder_path):
-            print(f"Warning: Folder '{folder_path}' not found. Skipping.")
+            print(f"Warning: Folder '{folder_path}' not found. Skipping.", flush=True)
             continue
             
-        print(f"\nScanning category: [{category_name.upper()}] in {folder_path}")
-        
         for filename in os.listdir(folder_path):
             if not filename.endswith(".md"):
                 continue
                 
-            # 3. SKIP ALREADY INGESTED FILES
             if filename in existing_files:
-                print(f"  -> Skipping {filename} (Already indexed in ChromaDB)")
+                print(f"  -> Skipping {filename} (Already indexed in ChromaDB)", flush=True)
                 continue
                 
-            file_path = os.path.join(folder_path, filename)
+            files_to_process.append((category_name, folder_path, filename))
+
+    if not files_to_process:
+        print("\nNo new files found. Database is up to date!", flush=True)
+        return
+        
+    print(f"\nFound {len(files_to_process)} new file(s) to ingest.", flush=True)
+
+    # --- NEW: ITERATE OVER THE PRE-COMPILED LIST WITH AN ENUMERATE COUNTER ---
+    for index, (category_name, folder_path, filename) in enumerate(files_to_process, 1):
+        
+        file_path = os.path.join(folder_path, filename)
+        
+        with open(file_path, "r", encoding="utf-8") as f:
+            file_content = f.read()
+        
+        source_url = filename
+        url_match = re.search(r'\*\s*\*\*URL:\*\*\s*(https?://[^\s]+)', file_content)
+        if url_match:
+            source_url = url_match.group(1)
+        
+        md_header_splits = markdown_splitter.split_text(file_content)
+        final_splits = text_splitter.split_documents(md_header_splits)
+        
+        documents = []
+        summaries = []
+        metadatas = []
+        ids = []
+        
+        # ADDED FLUSH & PROGRESS COUNTER
+        print(f"[{index}/{len(files_to_process)}] Indexing NEW FILE: {filename} ({len(final_splits)} chunks)", flush=True)
+        
+        for idx, split in enumerate(final_splits):
+            original_text = split.page_content
+            documents.append(original_text)
             
-            with open(file_path, "r", encoding="utf-8") as f:
-                file_content = f.read()
+            meta = split.metadata.copy() 
+            meta.update({
+                "source": source_url, 
+                "file": filename, 
+                "chunk_index": idx,
+                "category": category_name,
+                "has_funding_info": any(w in original_text.lower() for w in ["lakh", "amount", "grant", "fund", "₹", "rs"]),
+                "has_eligibility_info": any(w in original_text.lower() for w in ["eligible", "criteria", "apply", "who can"])
+            })
+            metadatas.append(meta)
             
-            source_url = filename
-            url_match = re.search(r'\*\s*\*\*URL:\*\*\s*(https?://[^\s]+)', file_content)
-            if url_match:
-                source_url = url_match.group(1)
+            # 4. UNIQUE IDs: Bind the chunk ID to the filename so they never overlap with older files
+            ids.append(f"{filename}_chunk_{idx}")
             
-            md_header_splits = markdown_splitter.split_text(file_content)
-            final_splits = text_splitter.split_documents(md_header_splits)
+            # ADDED FLUSH
+            print(f"      -> Summarizing chunk {idx + 1}/{len(final_splits)}...", flush=True)
+            summaries.append(_generate_chunk_summary(original_text))
+        
+        if documents:
+            # ADDED FLUSH
+            print(f"      -> Computing vectors and injecting into ChromaDB...", flush=True)
+            summary_embeddings = embedding_func(summaries)
             
-            documents = []
-            summaries = []
-            metadatas = []
-            ids = []
+            collection.add(
+                documents=documents, 
+                embeddings=summary_embeddings, 
+                metadatas=metadatas, 
+                ids=ids
+            )
+            total_new_chunks += len(documents)
             
-            print(f"  -> Indexing NEW FILE: {filename} ({len(final_splits)} chunks)")
-            
-            for idx, split in enumerate(final_splits):
-                original_text = split.page_content
-                documents.append(original_text)
-                
-                meta = split.metadata.copy() 
-                meta.update({
-                    "source": source_url, 
-                    "file": filename, 
-                    "chunk_index": idx,
-                    "category": category_name,
-                    "has_funding_info": any(w in original_text.lower() for w in ["lakh", "amount", "grant", "fund", "₹", "rs"]),
-                    "has_eligibility_info": any(w in original_text.lower() for w in ["eligible", "criteria", "apply", "who can"])
-                })
-                metadatas.append(meta)
-                
-                # 4. UNIQUE IDs: Bind the chunk ID to the filename so they never overlap with older files
-                ids.append(f"{filename}_chunk_{idx}")
-                
-                print(f"      -> Summarizing chunk {idx + 1}/{len(final_splits)}...")
-                summaries.append(_generate_chunk_summary(original_text))
-            
-            if documents:
-                print(f"      -> Computing vectors and injecting into ChromaDB...")
-                summary_embeddings = embedding_func(summaries)
-                
-                collection.add(
-                    documents=documents, 
-                    embeddings=summary_embeddings, 
-                    metadatas=metadatas, 
-                    ids=ids
-                )
-                total_new_chunks += len(documents)
-                
     if total_new_chunks > 0:
-        print(f"\nSuccess! Embedded {total_new_chunks} new chunks into ChromaDB.")
+        # ADDED FLUSH
+        print(f"\nSuccess! Embedded {total_new_chunks} new chunks into ChromaDB.", flush=True)
     else:
-        print("\nNo new files found. Database is up to date!")
+        # ADDED FLUSH
+        print("\nNo new files found. Database is up to date!", flush=True)
 
 if __name__ == "__main__":
     ingest_data()
