@@ -18,13 +18,18 @@ class KSUMAssistant:
         self.embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name=EMBEDDING_MODEL
         )
+        # Use get_or_create so a fresh database (first Docker run) doesn't crash
+        # the app at startup. On the very first boot no data has been ingested yet,
+        # so the collection won't exist. Creating it here lets the API come online
+        # (returning "no information" answers) until the admin triggers ingestion
+        # via /api/admin/ingest, which populates this same collection.
         try:
-            self.collection = self.db_client.get_collection(
+            self.collection = self.db_client.get_or_create_collection(
                 name=COLLECTION_NAME,
                 embedding_function=self.embedding_func
             )
-        except Exception:
-            raise RuntimeError("Database collection not found. Please run ingest.py first.")
+        except Exception as e:
+            raise RuntimeError(f"Failed to connect to the vector database collection: {e}")
 
         # Stage 2: Initialize Cross-Encoder Re-ranker
         print("[System -> Loading Cross-Encoder Re-ranker model...]")
