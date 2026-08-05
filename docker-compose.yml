@@ -32,6 +32,16 @@ services:
       - TRANSFORMERS_OFFLINE=1
     depends_on:
       - vectordb
+    # Expose the host NVIDIA GPU(s) (e.g. Tesla P100) to the container so the
+    # embedding model and CrossEncoder reranker run on CUDA. Requires the
+    # nvidia-container-toolkit installed on the host.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     networks:
       - public_net
       - internal_net
