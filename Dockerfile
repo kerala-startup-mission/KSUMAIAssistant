@@ -17,6 +17,11 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 # already satisfied and won't replace it with the mismatched wheel.
 RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
+# faster-whisper (CTranslate2) needs cuDNN/cuBLAS at runtime to use the GPU.
+# The cu121 torch wheel already ships these as nvidia-* packages, so point the
+# dynamic linker at them instead of installing CUDA libs a second time.
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:${LD_LIBRARY_PATH}
+
 # Copy your requirements and install Python packages
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

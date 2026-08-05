@@ -62,7 +62,24 @@ app.add_middleware(
 
 logger.info("Initializing KSUM Assistant & STT Engine...")
 assistant = KSUMAssistant()
-whisper_model = WhisperModel("base.en", device="cpu", compute_type="int8")
+
+
+def _load_whisper_model():
+    """Load faster-whisper on the GPU when CUDA is available, else fall back to
+    CPU. GPU init can fail even when a device is present (e.g. missing cuDNN),
+    so we degrade gracefully instead of crashing the API on startup."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            logger.info("Loading Whisper STT on GPU (cuda, float16)...")
+            return WhisperModel("base.en", device="cuda", compute_type="float16")
+    except Exception as e:
+        logger.warning(f"Whisper GPU init failed, falling back to CPU: {e}")
+    logger.info("Loading Whisper STT on CPU (int8)...")
+    return WhisperModel("base.en", device="cpu", compute_type="int8")
+
+
+whisper_model = _load_whisper_model()
 logger.info("KSUM Assistant System Ready.")
 
 class ChatRequest(BaseModel):
