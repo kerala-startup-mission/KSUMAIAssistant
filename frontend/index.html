@@ -241,7 +241,7 @@
                     formData.append("file", audioBlob, "voice_input.webm");
 
                     try {
-                        const response = await fetch('http://localhost:8000/stt', {
+                        const response = await fetch('/stt', {
                             method: 'POST',
                             body: formData
                         });
@@ -376,7 +376,7 @@
             fetchController = new AbortController();
 
             try {
-                const response = await fetch('http://localhost:8000/chat', {
+                const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: text }),

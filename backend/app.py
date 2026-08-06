@@ -10,6 +10,8 @@ from collections import deque
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Request, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -93,9 +95,9 @@ def clean_text_for_voice(text: str) -> str:
 # ==========================================
 # PUBLIC CORE ENDPOINTS
 # ==========================================
-@app.get("/")
+@app.get("/api/status")
 @limiter.limit("30/minute")
-async def root(request: Request):
+async def api_status(request: Request):
     return {"status": "online", "message": "KSUM AI Assistant API is running"}
 
 @app.post("/chat")
@@ -213,6 +215,23 @@ async def trigger_ingestion(request: Request, background_tasks: BackgroundTasks)
     background_tasks.add_task(run_ingestion_script)
     logger.info("Admin triggered database re-ingestion.")
     return {"status": "processing", "message": "Ingestion triggered in the background."}
+
+# ==========================================
+# STATIC FRONTEND (served by FastAPI)
+# ==========================================
+# The frontend/ folder ships in the image (Dockerfile COPY . .). Serving it from
+# the same FastAPI app means the UI and API share one origin, so the pages can
+# call the API with relative paths and work regardless of host/port.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+@app.get("/admin", include_in_schema=False)
+async def admin_page():
+    """Convenience alias so the admin panel is reachable at /admin."""
+    return FileResponse(FRONTEND_DIR / "admin.html")
+
+# Mounted LAST so all API routes registered above take precedence. html=True
+# serves index.html at "/" and resolves other files (admin.html, the logo) by name.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
