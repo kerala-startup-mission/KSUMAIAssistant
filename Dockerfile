@@ -15,7 +15,12 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 # support, so only the host driver + nvidia-container-toolkit are needed.
 # Installing torch here means the sentence-transformers install below sees it as
 # already satisfied and won't replace it with the mismatched wheel.
-RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+#
+# Must stay >=2.5: the transformers version pulled in by sentence-transformers
+# imports `torch.distributed.tensor.DTensor`, a public API that only exists from
+# torch 2.5 onward (it lived under the private torch.distributed._tensor in 2.4).
+# 2.5.1+cu121 still ships Pascal (sm_60) kernels for the P100.
+RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 # faster-whisper (CTranslate2) needs cuDNN/cuBLAS at runtime to use the GPU.
 # The cu121 torch wheel already ships these as nvidia-* packages, so point the
