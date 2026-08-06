@@ -73,8 +73,14 @@ def _load_whisper_model():
     try:
         import torch
         if torch.cuda.is_available():
-            logger.info("Loading Whisper STT on GPU (cuda, float16)...")
-            return WhisperModel("base.en", device="cuda", compute_type="float16")
+            # Use "auto" rather than hardcoding float16: CTranslate2 only enables
+            # float16 on compute capability >= 7.0 (Volta+) and efficient int8 on
+            # >= 6.1 (DP4A). The Tesla P100 is sm_60, so both are rejected and a
+            # hardcoded float16 fails GPU init entirely. "auto" picks the fastest
+            # type the device actually supports (float32 on the P100, float16 on
+            # newer GPUs), keeping STT on the GPU across hardware.
+            logger.info("Loading Whisper STT on GPU (cuda, auto compute type)...")
+            return WhisperModel("base.en", device="cuda", compute_type="auto")
     except Exception as e:
         logger.warning(f"Whisper GPU init failed, falling back to CPU: {e}")
     logger.info("Loading Whisper STT on CPU (int8)...")
