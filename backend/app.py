@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import logging
+import time
 from collections import deque
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Request, BackgroundTasks, HTTPException
@@ -110,10 +111,14 @@ async def api_status(request: Request):
 @limiter.limit("10/minute")
 async def chat_endpoint(request: Request, chat_data: ChatRequest):
     logger.info(f"Incoming Chat Request: {chat_data.message}")
+    # [Timing] logs below are diagnostic only and do not change behaviour.
+    _t_req = time.perf_counter()
     response_text = assistant.generate_response(chat_data.message)
+    logger.info(f"[Timing] generate_response: {time.perf_counter() - _t_req:.2f}s")
     clean_text = clean_text_for_voice(response_text)
     audio_base64 = ""
-    
+
+    _t_tts = time.perf_counter()
     if clean_text:
         try:
             communicate = edge_tts.Communicate(clean_text, "en-US-JennyNeural")
@@ -125,6 +130,8 @@ async def chat_endpoint(request: Request, chat_data: ChatRequest):
             audio_base64 = base64.b64encode(audio_buffer.read()).decode("utf-8")
         except Exception as e:
             logger.error(f"Audio generation failed: {e}")
+    logger.info(f"[Timing] tts_synthesis: {time.perf_counter() - _t_tts:.2f}s")
+    logger.info(f"[Timing] chat_endpoint_total: {time.perf_counter() - _t_req:.2f}s")
 
     return {"response": response_text, "audio": audio_base64}
 
