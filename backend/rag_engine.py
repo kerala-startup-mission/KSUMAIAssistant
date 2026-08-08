@@ -9,6 +9,7 @@ from sentence_transformers import CrossEncoder
 import ollama
 import json
 import re
+import time
 from backend.config import EMBEDDING_MODEL, COLLECTION_NAME, LLM_MODEL, CHROMA_HOST, CHROMA_PORT
 
 class KSUMAssistant:
@@ -303,18 +304,32 @@ class KSUMAssistant:
             return greeting_msg
 
         # Step 0: Check memory capacity boundaries before computing the response loop
-        self._compact_history()
+        # NOTE: The [Timing -> ...] prints below are diagnostic only; they measure
+        # each stage's wall-clock cost and do not alter any behaviour.
+        _t_total = time.perf_counter()
 
+        _t = time.perf_counter()
+        self._compact_history()
+        print(f"[Timing -> compact_history: {time.perf_counter() - _t:.2f}s]")
+
+        _t = time.perf_counter()
         search_query = self._contextualize_query(user_question)
+        print(f"[Timing -> contextualize_query: {time.perf_counter() - _t:.2f}s]")
         print(f"\n[System DB Search Query -> '{search_query}']\n")
-        
+
+        _t = time.perf_counter()
         hunt_words = self._extract_keywords(search_query)
-        
+        print(f"[Timing -> extract_keywords: {time.perf_counter() - _t:.2f}s]")
+
         # Stage 1: Get top candidate chunks using your heuristic hybrid scorer
+        _t = time.perf_counter()
         candidate_chunks = self._hybrid_retrieve(search_query, hunt_words)
-        
+        print(f"[Timing -> hybrid_retrieve: {time.perf_counter() - _t:.2f}s]")
+
         # Stage 2: Re-rank the candidates using the Cross-Encoder to extract the top 6
+        _t = time.perf_counter()
         top_chunks = self._rerank_chunks(search_query, candidate_chunks, top_k=6)
+        print(f"[Timing -> rerank_chunks: {time.perf_counter() - _t:.2f}s]")
         
         raw_context = ""
         source_documents = set()
@@ -370,12 +385,24 @@ CRITICAL OPERATIONAL RULES:
                 }
             )
             
+            _t_gen = time.perf_counter()
+            _first_token_at = None
             llm_response = ""
             for chunk in stream:
                 content = chunk['message']['content']
+                if _first_token_at is None:
+                    _first_token_at = time.perf_counter()
                 print(content, end='', flush=True)
                 llm_response += content
-            
+
+            if _first_token_at is not None:
+                print(
+                    f"\n[Timing -> llm_first_token: {_first_token_at - _t_gen:.2f}s | "
+                    f"llm_generation_total: {time.perf_counter() - _t_gen:.2f}s]"
+                )
+            else:
+                print(f"\n[Timing -> llm_generation_total: {time.perf_counter() - _t_gen:.2f}s (no tokens)]")
+
             if not llm_response.strip():
                 llm_response = "I'm sorry, but I don't have that information right now."
                 print(llm_response)
@@ -392,8 +419,9 @@ CRITICAL OPERATIONAL RULES:
                 sources_clean_list = "\n\n**Source Documents:**\n" + "\n".join([f"• {s}" for s in sorted(source_documents)])
                 print(sources_clean_list)
                 final_output += sources_clean_list
-            
-            print("\n") 
+
+            print("\n")
+            print(f"[Timing -> TOTAL generate_response: {time.perf_counter() - _t_total:.2f}s]")
             return final_output
             
         except Exception as e:
