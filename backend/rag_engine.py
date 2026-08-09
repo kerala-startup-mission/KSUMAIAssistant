@@ -387,6 +387,7 @@ CRITICAL OPERATIONAL RULES:
             
             _t_gen = time.perf_counter()
             _first_token_at = None
+            _last_chunk = None
             llm_response = ""
             for chunk in stream:
                 content = chunk['message']['content']
@@ -394,6 +395,7 @@ CRITICAL OPERATIONAL RULES:
                     _first_token_at = time.perf_counter()
                 print(content, end='', flush=True)
                 llm_response += content
+                _last_chunk = chunk  # retain final chunk for Ollama's token stats
 
             if _first_token_at is not None:
                 print(
@@ -402,6 +404,34 @@ CRITICAL OPERATIONAL RULES:
                 )
             else:
                 print(f"\n[Timing -> llm_generation_total: {time.perf_counter() - _t_gen:.2f}s (no tokens)]")
+
+            # Diagnostic only: report Ollama's own token counts (from the final
+            # stream chunk) to reveal whether the model over-generates and to
+            # separate prompt-prefill cost from output-generation cost. Wrapped so
+            # a missing/renamed field can never affect the actual response.
+            try:
+                def _stat(key):
+                    if _last_chunk is None:
+                        return None
+                    try:
+                        return _last_chunk[key]
+                    except (KeyError, TypeError):
+                        return getattr(_last_chunk, key, None)
+
+                prompt_tokens = _stat('prompt_eval_count')     # input tokens (context + prompt)
+                output_tokens = _stat('eval_count')            # tokens the model generated
+                prompt_dur = _stat('prompt_eval_duration')     # nanoseconds
+                eval_dur = _stat('eval_duration')              # nanoseconds
+
+                prompt_rate = f"{prompt_tokens / (prompt_dur / 1e9):.1f} tok/s" if prompt_tokens and prompt_dur else "n/a"
+                out_rate = f"{output_tokens / (eval_dur / 1e9):.1f} tok/s" if output_tokens and eval_dur else "n/a"
+
+                print(
+                    f"[Tokens -> input(prompt): {prompt_tokens} @ {prompt_rate} | "
+                    f"output(generated): {output_tokens} @ {out_rate}]"
+                )
+            except Exception as e:
+                print(f"[Tokens -> stats unavailable: {e}]")
 
             if not llm_response.strip():
                 llm_response = "I'm sorry, but I don't have that information right now."
