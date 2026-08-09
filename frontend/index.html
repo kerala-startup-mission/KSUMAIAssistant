@@ -368,11 +368,25 @@
             const wrapper = document.createElement('div');
             wrapper.id = typingId;
             wrapper.className = "flex justify-start w-full";
-            wrapper.innerHTML = `<div class="glass-panel px-4 py-4 md:px-6 md:py-5 rounded-2xl md:rounded-3xl rounded-bl-sm flex items-center justify-center"><div class="dot-flashing"></div></div>`;
+            wrapper.innerHTML = `<div class="glass-panel px-4 py-4 md:px-6 md:py-5 rounded-2xl md:rounded-3xl rounded-bl-sm flex flex-col items-center justify-center gap-3"><div class="dot-flashing"></div><span id="status-${typingId}" class="text-xs md:text-sm text-gray-400 font-light tracking-wide transition-opacity duration-300">Understanding your question</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            if (fetchController) fetchController.abort(); 
+            // Cycle a short status label under the loading dots so the user sees
+            // which step is running during the wait. Timings approximate the
+            // backend pipeline stages; this is purely a cosmetic progress hint
+            // (the /chat call returns a single response, not live events).
+            const statusSteps = [
+                { at: 1500, text: "Searching the knowledge base" },
+                { at: 4500, text: "Reviewing relevant schemes" },
+                { at: 7500, text: "Composing your answer" }
+            ];
+            const statusTimers = statusSteps.map(step => setTimeout(() => {
+                const el = document.getElementById("status-" + typingId);
+                if (el) el.textContent = step.text;
+            }, step.at));
+
+            if (fetchController) fetchController.abort();
             fetchController = new AbortController();
 
             try {
@@ -416,7 +430,8 @@
                 }
                 setButtonState(false);
             } finally {
-                fetchController = null; 
+                statusTimers.forEach(clearTimeout);
+                fetchController = null;
             }
         }
 
