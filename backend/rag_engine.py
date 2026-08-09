@@ -10,7 +10,7 @@ import ollama
 import json
 import re
 import time
-from backend.config import EMBEDDING_MODEL, COLLECTION_NAME, LLM_MODEL, CHROMA_HOST, CHROMA_PORT
+from backend.config import EMBEDDING_MODEL, COLLECTION_NAME, LLM_MODEL, CHROMA_HOST, CHROMA_PORT, LLM_NUM_CTX
 
 class KSUMAssistant:
     def __init__(self):
@@ -66,7 +66,7 @@ class KSUMAssistant:
                     {'role': 'system', 'content': compaction_prompt},
                     {'role': 'user', 'content': f"History to compact:\n{history_text}"}
                 ],
-                options={'temperature': 0.0, 'num_ctx': 2048, 'num_predict': 150}
+                options={'temperature': 0.0, 'num_ctx': LLM_NUM_CTX, 'num_predict': 150}
             )
             
             summary = response['message']['content'].strip()
@@ -121,7 +121,7 @@ class KSUMAssistant:
                     {'role': 'system', 'content': system_instruction},
                     {'role': 'user', 'content': user_content}
                 ],
-                options={'temperature': 0.0, 'num_ctx': 2048, 'num_predict': 100},
+                options={'temperature': 0.0, 'num_ctx': LLM_NUM_CTX, 'num_predict': 100},
                 format='json' 
             )
             
@@ -160,7 +160,7 @@ class KSUMAssistant:
             response = ollama.chat(
                 model=LLM_MODEL, 
                 messages=[{'role': 'system', 'content': prompt}, {'role': 'user', 'content': query}],
-                options={'temperature': 0.0, 'num_ctx': 1024, 'num_predict': 100},
+                options={'temperature': 0.0, 'num_ctx': LLM_NUM_CTX, 'num_predict': 100},
                 format='json'
             )
             content = response['message']['content']
@@ -379,8 +379,8 @@ CRITICAL OPERATIONAL RULES:
                 messages=messages, 
                 stream=True,
                 options={
-                    'num_predict': -1, 
-                    'num_ctx': 8192,
+                    'num_predict': -1,
+                    'num_ctx': LLM_NUM_CTX,
                     'temperature': 0.0
                 }
             )
